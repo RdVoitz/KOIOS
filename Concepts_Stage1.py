@@ -17,7 +17,7 @@ df = pd.read_excel ('koiosDatabase_Concepts_and_Definitions.xlsx') #for an earli
 #print(df.columns.values)
 
 
-# In[55]:
+# In[2]:
 
 
 values = []
@@ -32,11 +32,11 @@ for x in df['CONCEPT_ID']:
 print(count)
 
 
-# In[56]:
+# In[3]:
 
 
 usefulAttributes = ['CONCEPT_ID', 'TERM_ID', 'DEFINITION_ID' ,'DEFINITION_CONTENT_ID','SYNONYMS_ID', 
-'CONCEPT_TYPE_ID', 'SYNONYM_VALUE', 'DEFINITION','DEF_FULL_SOURCE_TEXT','TERM_SOURCE_ID', 'DEFINITION_SOURCE_ID', 'ECCMA_CONCEPT_ID']
+'CONCEPT_TYPE_ID', 'SYNONYM_VALUE', 'DEFINITION','DEF_FULL_SOURCE_TEXT','TERM_SOURCE_ID']
 
 for x in df.columns.values:
     if x not in usefulAttributes:
@@ -45,22 +45,22 @@ for x in df.columns.values:
 print(df.columns.values)
 
 
-# In[57]:
+# In[4]:
 
 
 print(len(df.columns.values))
 
 
-# In[59]:
+# In[5]:
 
 
-for index, row in df.iterrows():
-    term = row['SYNONYM_VALUE']
-    if term == 'standard form':
-        print(row['DEFINITION'],'  ', row['CONCEPT_TYPE_ID'], ' ', row['ECCMA_CONCEPT_ID'])
+# for index, row in df.iterrows():
+#     term = row['SYNONYM_VALUE']
+#     if term == 'standard form':
+#         print(row['DEFINITION'],'  ', row['CONCEPT_TYPE_ID'], ' ', row['ECCMA_CONCEPT_ID'])
 
 
-# In[17]:
+# In[6]:
 
 
 keys = set(df['SYNONYM_VALUE'])
@@ -87,7 +87,7 @@ print(len(term_to_concepts['wetting agent']))
     
 
 
-# In[19]:
+# In[7]:
 
 
 def deletekeys():
@@ -99,7 +99,7 @@ deletekeys()
 print(len(term_to_concepts))
 
 
-# In[9]:
+# In[8]:
 
 
 # import nltk
@@ -118,30 +118,85 @@ print(len(term_to_concepts))
 #     return filtered
 
 
-# In[10]:
+# In[9]:
 
 
 # example_sent = "this is a Sample sentence, showing off the Stop words filtration"
 # print(clean(example_sent))
 
 
-# In[20]:
+# In[ ]:
 
 
 import spacy
 nlp = spacy.load('en_core_web_lg')
 
+
+# In[67]:
+
+
+from scipy import spatial
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 def compare(d1,d2):
     doc1 = nlp(d1)
     doc2 = nlp(d2)
+    text = [d1,d2]
+#     for t in doc1:
+#         if not t.is_stop | t.is_punct:
+#             print(t.vector)
+#             break
     
-    doc1 = nlp(' '.join([str(t) for t in doc1 if not t.is_stop | t.is_punct ]))
-    doc2 = nlp(' '.join([str(t) for t in doc2 if not t.is_stop | t.is_punct ]))
-    score = doc1.similarity(doc2)  
-    return score
+#     doc1 = nlp(' '.join([str(t) for t in doc1 if not t.is_stop | t.is_punct ]))
+#     doc2 = nlp(' '.join([str(t) for t in doc2 if not t.is_stop | t.is_punct ]))
+    
+    doc1 = ' '.join([str(t) for t in doc1 if not t.is_stop | t.is_punct ])
+    doc2 = ' '.join([str(t) for t in doc2 if not t.is_stop | t.is_punct ])
+    
+    text = [doc1, doc2]
+    
+    
+    tfidf = TfidfVectorizer()
+    tfidf.fit(text)
+    v1 = tfidf.transform([text[0]]).toarray()
+    v2 = tfidf.transform([text[1]]).toarray()
+    
+   # tfidf.fit()
+#     print(vector.shape)
+#    print(vector.toarray())
+#     print("************************")
+            
+#     v1 = doc1.vector
+#     v2 = doc2.vector
+    result = 1 - spatial.distance.cosine(v1,v2)
+    #print(result)
+    #score = doc1.similarity(doc2)  
+    return result
 
 
-# In[41]:
+# In[68]:
+
+
+# example1 = 'Sachin is a cricket player and a opening batsman'
+# example2 = 'Dhoni is a cricket player too He is a batsman and keeper'
+# example3 = 'Anand is a chess player'
+# example4 = 'This is such a sunny day'
+
+# print("E1 & E2 ", compare(example1,example2))
+# print("E1 & E3 ", compare(example1,example3))
+# print("E1 & E4 ", compare(example1,example4))
+# print("E2 & E3 ", compare(example2,example3))
+# print("E2 & E4 ", compare(example2,example4))
+# print("E3 & E4 ", compare(example3,example4))
+
+
+# In[ ]:
+
+
+
+
+
+# In[73]:
 
 
 doublekeys = list(term_to_concepts.keys())
@@ -159,7 +214,7 @@ for term in doublekeys:
             typeid2, description2 = term_to_concepts[term][conceptid2]
             
             if typeid1 == typeid2:
-                if compare(description1,description2) >= 0.95:
+                if compare(description1,description2) >= 0.90:
                     similar.append((description1,description2))
                     if type_to_similar[term] == None:
                         type_to_similar[term] = []
@@ -169,7 +224,7 @@ for term in doublekeys:
         
 
 
-# In[42]:
+# In[74]:
 
 
 print(len(similar))
@@ -179,7 +234,7 @@ print(len(type_to_similar))
 print(len(type_to_similar.keys()))
 
 
-# In[43]:
+# In[75]:
 
 
 def mostSimilar():
@@ -198,6 +253,8 @@ def mostSimilar():
     print(memorised)
     print(count)
     print('**************************')
+    
+    memorised = "standard form"
     
     for touple in type_to_similar[memorised]:
         d1,d2 = touple
@@ -230,25 +287,8 @@ mostSimilar()
 for index, row in df
 
 
-# In[24]:
-
-
-example1 = 'Sachin is a cricket player and a opening batsman'
-example2 = 'Dhoni is a cricket player too He is a batsman and keeper'
-example3 = 'Anand is a chess player'
-example4 = 'This is such a sunny day'
-
-print("E1 & E2 ", compare(example1,example2))
-print("E1 & E3 ", compare(example1,example3))
-print("E1 & E4 ", compare(example1,example4))
-print("E2 & E3 ", compare(example2,example3))
-print("E2 & E4 ", compare(example2,example4))
-print("E3 & E4 ", compare(example3,example4))
-
-
 # In[ ]:
 
 
-for i in range(0,1):
-    print(*)
+
 
