@@ -94,11 +94,11 @@ nlp = spacy.load('en_core_web_lg')
 
 #Compares two descriptions using the trained tfidf
 #Returns similarity score measured with cosine
-
+nlp = spacy.load('en_core_web_lg')
 def compare(d1,d2, tfidf):
     doc1 = nlp(d1)
     doc2 = nlp(d2)
-    
+     
     #Clean the text
     doc1 = ' '.join([str(t) for t in doc1 if not t.is_stop | t.is_punct ])
     doc2 = ' '.join([str(t) for t in doc2 if not t.is_stop | t.is_punct ])
@@ -116,6 +116,158 @@ def compare(d1,d2, tfidf):
 
 
 # In[8]:
+
+
+# import gensim.downloader as api
+
+# dataset = api.load("text8")
+# data = [d for d in dataset]
+
+# def create_tagged_document(list_of_list_of_words):
+#     for i, list_of_words in enumerate(list_of_list_of_words):
+#         yield gensim.models.doc2vec.TaggedDocument(list_of_words, [i])
+        
+
+# train_data = list(create_tagged_document(data))
+
+# model = gensim.models.doc2vec.Doc2Vec(vector_size = 50, min_count = 2, epochs = 1)
+# model.build_vocab(train_data)
+
+# model.train(train_data, total_examples= model.corpus_count, epochs = model.epochs)
+
+
+# In[8]:
+
+
+#SAME methods for cleaning the text and tokenizing
+import logging
+import numpy as np
+from gensim.models import word2vec
+import wikipedia
+from wikipedia import search, page
+
+
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',    level=logging.INFO)
+
+def description_to_wordlist(description):
+    d  = [str(t).lower() for t in nlp(description) if not t.is_stop] # | t.is_punct ]
+    return d
+
+def wikipedia_summary(term):
+    text = []
+    titles, suggestions  = search(term, suggestion = True)
+    if suggestions == None:
+        x = 0
+        while x<3:
+            x = x+1
+           # print(term, 'X is ', x, 'Len_titles is ', len(titles))
+            try:
+                summary = wikipedia.summary(titles[x-1])
+                text.append(description_to_wordlist(summary))
+            except wikipedia.DisambiguationError as e:
+                for y in e.options:
+                    try:
+                        summary = wikipedia.summary(y)
+                        text.append(description_to_wordlist(summary))
+                    except:
+                        continue
+            except:
+                continue
+            #x = x+1
+    else:
+        try:
+            summary = wikipedia.summary(suggestions)
+            text.append(description_to_wordlist(summary))
+        except wikipedia.DisambiguationError as e:
+            for y in e.options:
+                    try:
+                        summary = wikipedia.summary(y)
+                        text.append(description_to_wordlist(summary))
+                    except:
+                        continue
+        except:
+            return text
+            
+    return text
+
+def create_text():
+    count = 0
+    text=[]
+    print("Preparing the text for the model")
+    for term in list(term_to_concepts.keys()):
+        count = count +1
+        if count % 100 == 0 :
+            print("100 TERMS COVERED")
+        wiki = wikipedia_summary(term)
+        text = text + wiki
+            
+        for concept in list(term_to_concepts[term]):
+            t, d = term_to_concepts[term][concept]
+            #print(d)
+            d = description_to_wordlist(d)
+            text.append(d)  
+    return text
+
+def train_GENSIM(text):
+
+    #traing GENSIM WORD2VEC
+
+    num_features = 300    # Word vector dimensionality                      
+    min_word_count = 40   # Minimum word count                        
+    num_workers = 4       # Number of threads to run in parallel
+    context = 10          # Context window size                                                                                    
+    downsampling = 1e-3   # Downsample setting for frequent words
+    epochs = 10           # Number of epochs
+
+
+    print("Training model...")
+    model = word2vec.Word2Vec(text,iter=epochs, workers=num_workers,                 size=num_features, min_count = min_word_count,                 window = context, sample = downsampling)
+    
+    model_name = "300features_40minwords_10context"
+    model.save(model_name)
+    
+    return model
+
+
+def vector_averaging(doc, model):
+    vector = np.zeros((300,),dtype="float32")
+    index2word_set = set(model.wv.index2word)
+    nwords = 0
+    
+    for word in doc:
+        if word in index2word_set:
+            nwords = nwords + 1
+            vector = np.add(vector, model[word])
+    vector = np.divide(vector,nwords)
+    
+    return vector
+
+def gensim_similarity(d1,d2, model):
+    #Clean the text
+    doc1 = [str(t) for t in nlp(d1) if not t.is_stop | t.is_punct ]
+    doc2 = [str(t) for t in nlp(d2) if not t.is_stop | t.is_punct ]
+        
+    v1 = vector_averaging(doc1,model)
+    v2 = vector_averaging(doc2,model)
+
+    result = 1 - spatial.distance.cosine(v1,v2)
+    return result
+
+
+# In[31]:
+
+
+import wikipedia
+from wikipedia import search, page
+title = search('wire',suggestion = True)
+
+print(title)
+wikipage = page(title[0])
+
+print(type(wikipedia.summary(title[0])))
+
+
+# In[18]:
 
 
 # example1 = 'Sachin is a cricket player and a opening batsman'
@@ -142,46 +294,28 @@ def trainer():
             t, d = term_to_concepts[term][concept]
             d = ' '.join([str(t) for t in nlp(d) if not t.is_stop | t.is_punct ])
             text.append(d)
-    tfidf = TfidfVectorizer()
+    tfidf = TfidfVectorizer(ngram_range = (1,3))
     tfidf.fit(text)
     return tfidf
-    
 
-
-# In[12]:
-
-
-#GENSIM METHOD
-
-from gensim import corpora
-from gensim.models import TfidfModel
-import numpy as np
-import pprint
-
-def create_dictionary():
+def trainer_w_term(term):
     text = []
-    for term in list(term_to_concepts.keys()):
-            for concept in list(term_to_concepts[term]):
-                t, d = term_to_concepts[term][concept]
-                d = [str(t).lower() for t in nlp(d) if not t.is_stop | t.is_punct ]
-                text.append(d)
-                #d = [d]
-            break
-    dictionary = corpora.Dictionary(text)
-    corpus = [dictionary.doc2bow(doc, allow_update = True) for doc in text]
-
-    tfidf = TfidfModel(corpus, smartirs='ntc')
+    for concept in list(term_to_concepts[term]):
+            t, d = term_to_concepts[term][concept]
+            d = ' '.join([str(t) for t in nlp(d) if not t.is_stop | t.is_punct ])
+            text.append(d)
+    tfidf = TfidfVectorizer(ngram_range = (1,2))
+    tfidf.fit(text)
+    return tfidf   
     
-    for doc in tfidf[corpus]:
-        print([[dictionary[ids], np.around(freq, decimals=3)] for ids, freq in doc])
-        
-create_dictionary()
 
 
-# In[72]:
+# In[10]:
 
 
 import datetime
+from gensim.models import Word2Vec
+
 print(datetime.datetime.now())
 
 #list of terms used as keys
@@ -196,34 +330,48 @@ type_to_similar = dict.fromkeys(set(doublekeys))
 #trained tfidf model
 tfidf = trainer()  
 
+#PREPARE TEXT DATA FOR GENSIM TRAINING
+#text = create_text()
+
+#GENSIM WORD2VECTOR TRAINING
+#model = train_GENSIM(text)
+
+#retreive already trained model
+# model = Word2Vec.load("300features_40minwords_10context")
+# count = 0
+
 for term in doublekeys:
+    #while count<100:
+    count = count + 1
+
     smalkeys = list(term_to_concepts[term].keys()) #list of concepts associated with a term
-    
+
     #compare pairs of two descriptions by navigating the dictionary
     #of each term and addint the pairs with a level of similarity above a certain threshold
     #in a new dictionary associated with the term
-    
+
+    #tfidf = trainer_w_term(term)
     for i in range(0, len(smalkeys)-1):
         conceptid1 = smalkeys[i]
         typeid1, description1 = term_to_concepts[term][conceptid1]
-        
+
         for j in range(i+1, len(smalkeys)):
             conceptid2 = smalkeys[j]
             typeid2, description2 = term_to_concepts[term][conceptid2]
-            
+
             #the type of the concepts should be the same for comparison
-            
+
             if typeid1 == typeid2:
-                if compare(description1,description2,tfidf) >= 0.95:
+                if compare(description1,description2,tfidf) >= 0.80: #gensim_similarity(description1,description2,model)>=0.90: 
                     similar.append((description1,description2)) #add pairs to a list just for keeping track 
                     if type_to_similar[term] == None:
                         type_to_similar[term] = []
                     type_to_similar[term] = type_to_similar[term] + [(description1,description2)]
-                                       
+                                  
 print(datetime.datetime.now())        
 
 
-# In[73]:
+# In[32]:
 
 
 print(len(similar))
@@ -233,7 +381,7 @@ print(len(type_to_similar))
 print(len(type_to_similar.keys()))
 
 
-# In[76]:
+# In[36]:
 
 
 def mostSimilar():
@@ -253,7 +401,7 @@ def mostSimilar():
     print(count)
     print('**************************')
     
-    memorised = "wire"
+    memorised = "standard form"
     
     for touple in type_to_similar[memorised]:
         d1,d2 = touple
@@ -280,14 +428,42 @@ def mostSimilar():
 mostSimilar()    
 
 
+# In[33]:
+
+
+model.most_similar("wire")
+
+
 # In[ ]:
 
 
-for index, row in df
-
-
-# In[ ]:
 
 
 
+# In[57]:
+
+
+#GENSIM METHOD
+from gensim import corpora
+from gensim.models import TfidfModel
+import numpy as np
+import pprint
+
+def create_dictionary():
+    text = []
+    for term in list(term_to_concepts.keys()):
+            for concept in list(term_to_concepts[term]):
+                t, d = term_to_concepts[term][concept]
+                d = [str(t).lower() for t in nlp(d) if not t.is_stop | t.is_punct ]
+                text.append(d)
+                #d = [d]
+            break
+    dictionary = corpora.Dictionary(text)
+    corpus = [dictionary.doc2bow(doc, allow_update = True) for doc in text]
+    
+#     tfidf = TfidfModel(corpus, smartirs='ntc')
+#     for doc in tfidf[corpus]:
+#         print([[dictionary[ids], np.around(freq, decimals=3)] for ids, freq in doc])
+        
+#create_dictionary()
 
