@@ -494,5 +494,5 @@ for x in [11445, 12917, 12918, 10982, 11968]:
         i, c = t
         print(dictionary[i], sep=' ', end=' ', flush=True)
     print()    
-    print("********************")
+    print("*******************")
 
